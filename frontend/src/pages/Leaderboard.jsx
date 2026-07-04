@@ -1,7 +1,14 @@
-import { Medal } from "lucide-react";
+import { Crown, Medal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import api from "../api/client";
+
+function rankClass(index) {
+  if (index === 0) return "rank-badge rank-1";
+  if (index === 1) return "rank-badge rank-2";
+  if (index === 2) return "rank-badge rank-3";
+  return "rank-badge rank-other";
+}
 
 export default function Leaderboard() {
   const { contestId } = useParams();
@@ -10,6 +17,8 @@ export default function Leaderboard() {
   useEffect(() => {
     api.get(`/contests/${contestId}/leaderboard`).then(({ data }) => setLeaderboard(data.leaderboard));
   }, [contestId]);
+
+  const maxScore = leaderboard.length > 0 ? Math.max(...leaderboard.map(a => a.totalMarks), 1) : 1;
 
   return (
     <section className="stack">
@@ -26,30 +35,44 @@ export default function Leaderboard() {
               <th>Rank</th>
               <th>Student</th>
               <th>Roll</th>
-              <th>Score</th>
+              <th style={{ minWidth: 200 }}>Score</th>
               <th>Submitted</th>
             </tr>
           </thead>
           <tbody>
-            {leaderboard.map((attempt, index) => (
-              <tr key={attempt._id}>
-                <td>
-                  <span className="rank">
-                    <Medal size={16} />
-                    {index + 1}
-                  </span>
-                </td>
-                <td>{attempt.student?.name}</td>
-                <td>{attempt.student?.rollNumber || "-"}</td>
-                <td>
-                  {attempt.score} / {attempt.totalMarks}
-                </td>
-                <td>{attempt.submittedAt ? new Date(attempt.submittedAt).toLocaleString() : "-"}</td>
-              </tr>
-            ))}
+            {leaderboard.map((attempt, index) => {
+              const pct = attempt.totalMarks > 0 ? (attempt.score / attempt.totalMarks) * 100 : 0;
+              return (
+                <tr key={attempt._id} style={index < 3 ? { background: "rgba(59, 130, 246, 0.03)" } : undefined}>
+                  <td>
+                    <span className={rankClass(index)}>
+                      {index === 0 ? <Crown size={14} /> : <Medal size={14} />}
+                      #{index + 1}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: index < 3 ? 700 : 400 }}>{attempt.student?.name}</td>
+                  <td style={{ color: "var(--text-muted)" }}>{attempt.student?.rollNumber || "-"}</td>
+                  <td>
+                    <div className="score-bar-container">
+                      <div className="score-bar">
+                        <div className="score-bar-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="score-text">{attempt.score}/{attempt.totalMarks}</span>
+                    </div>
+                  </td>
+                  <td style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                    {attempt.submittedAt ? new Date(attempt.submittedAt).toLocaleString() : "-"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        {leaderboard.length === 0 && <p className="empty">No submissions yet.</p>}
+        {leaderboard.length === 0 && (
+          <div className="empty-state">
+            <p>No submissions yet. Be the first to compete!</p>
+          </div>
+        )}
       </div>
     </section>
   );

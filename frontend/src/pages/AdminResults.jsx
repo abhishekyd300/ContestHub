@@ -12,6 +12,8 @@ export default function AdminResults() {
 
   if (!data) return <div className="screen-message">Loading scores...</div>;
 
+  const submitted = data.attempts.filter((a) => a.submittedAt).length;
+
   return (
     <section className="stack">
       <div className="page-heading">
@@ -27,7 +29,7 @@ export default function AdminResults() {
         </div>
         <div className="stat">
           <span>Submitted</span>
-          <strong>{data.attempts.filter((attempt) => attempt.submittedAt).length}</strong>
+          <strong>{submitted}</strong>
         </div>
         <div className="stat">
           <span>Questions</span>
@@ -41,25 +43,44 @@ export default function AdminResults() {
               <th>Student</th>
               <th>Email</th>
               <th>Roll</th>
-              <th>Score</th>
+              <th style={{ minWidth: 180 }}>Score</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {data.attempts.map((attempt) => (
-              <tr key={attempt._id}>
-                <td>{attempt.student?.name}</td>
-                <td>{attempt.student?.email}</td>
-                <td>{attempt.student?.rollNumber || "-"}</td>
-                <td>
-                  {attempt.score} / {attempt.totalMarks}
-                </td>
-                <td>{attempt.submittedAt ? "Submitted" : "Started"}</td>
-              </tr>
-            ))}
+            {data.attempts.map((attempt) => {
+              const pct = attempt.totalMarks > 0 ? (attempt.score / attempt.totalMarks) * 100 : 0;
+              return (
+                <tr key={attempt._id}>
+                  <td style={{ fontWeight: 600 }}>{attempt.student?.name}</td>
+                  <td style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>{attempt.student?.email}</td>
+                  <td style={{ color: "var(--text-muted)" }}>{attempt.student?.rollNumber || "-"}</td>
+                  <td>
+                    <div className="score-bar-container">
+                      <div className="score-bar">
+                        <div className="score-bar-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="score-text">{attempt.score}/{attempt.totalMarks}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      className={`status ${attempt.submittedAt ? "live" : "scheduled"}`}
+                      style={attempt.submittedAt ? {} : { animation: "none" }}
+                    >
+                      {attempt.submittedAt ? "Submitted" : "In progress"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        {data.attempts.length === 0 && <p className="empty">No students have started this contest.</p>}
+        {data.attempts.length === 0 && (
+          <div className="empty-state">
+            <p>No students have started this contest yet.</p>
+          </div>
+        )}
       </div>
     </section>
   );

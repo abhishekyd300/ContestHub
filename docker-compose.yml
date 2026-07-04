@@ -7,5 +7,15 @@ services:
     volumes:
       - mongo-data:/data/db
 
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: contesthub-piston
+    ports:
+      - "2000:2000"
+    privileged: true
+    volumes:
+      - piston-data:/piston/packages
+
 volumes:
   mongo-data:
+  piston-data:

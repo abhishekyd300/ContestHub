@@ -23,14 +23,60 @@ const blankCoding = {
   marks: 10,
   language: "python",
   starterCode: "",
+  starterCodes: {},
   testCases: [{ input: "", expectedOutput: "" }]
 };
 
 const languageOptions = [
-  { value: "python", label: "Python" },
-  { value: "cpp", label: "C++" },
-  { value: "java", label: "Java" }
+  { value: "python", label: "Python 3" },
+  { value: "cpp", label: "C++ 17" },
+  { value: "c", label: "C" },
+  { value: "java", label: "Java 21" },
+  { value: "javascript", label: "JavaScript (Node)" },
+  { value: "typescript", label: "TypeScript" },
+  { value: "go", label: "Go" },
+  { value: "rust", label: "Rust" },
+  { value: "csharp", label: "C#" },
+  { value: "ruby", label: "Ruby" },
+  { value: "php", label: "PHP" },
+  { value: "kotlin", label: "Kotlin" },
+  { value: "swift", label: "Swift" },
+  { value: "r", label: "R" },
+  { value: "perl", label: "Perl" }
 ];
+
+const starterTemplates = {
+  python:
+    "import sys\n\ndef solve():\n    input_data = sys.stdin.read().strip()\n    # Write your solution here\n    print(input_data)\n\nif __name__ == \"__main__\":\n    solve()\n",
+  cpp:
+    "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    // C++17 — structured bindings, if-init, etc. available\n    string line;\n    while (getline(cin, line)) {\n        cout << line << '\\n';\n    }\n    return 0;\n}\n",
+  c:
+    "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    char buf[4096];\n    while (fgets(buf, sizeof(buf), stdin)) {\n        printf(\"%s\", buf);\n    }\n    return 0;\n}\n",
+  java:
+    "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        // Java 21 — records, pattern matching, etc. available\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        StringBuilder sb = new StringBuilder();\n        String line;\n        while ((line = br.readLine()) != null) {\n            sb.append(line).append('\\n');\n        }\n        System.out.print(sb.toString().trim());\n    }\n}\n",
+  javascript:
+    "// Node.js — ES2023+ features available\nconst chunks = [];\nprocess.stdin.on('data', (chunk) => chunks.push(chunk));\nprocess.stdin.on('end', () => {\n    const input = Buffer.concat(chunks).toString().trim();\n    // Write your solution here\n    console.log(input);\n});\n",
+  typescript:
+    "// TypeScript — full type safety\nconst chunks: Buffer[] = [];\nprocess.stdin.on('data', (chunk: Buffer) => chunks.push(chunk));\nprocess.stdin.on('end', () => {\n    const input: string = Buffer.concat(chunks).toString().trim();\n    // Write your solution here\n    console.log(input);\n});\n",
+  go:
+    "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {\n\tscanner := bufio.NewScanner(os.Stdin)\n\tfor scanner.Scan() {\n\t\tfmt.Println(scanner.Text())\n\t}\n}\n",
+  rust:
+    "use std::io::{self, Read};\n\nfn main() {\n    let mut input = String::new();\n    io::stdin().read_to_string(&mut input).unwrap();\n    // Write your solution here\n    print!(\"{}\", input.trim());\n}\n",
+  csharp:
+    "using System;\nusing System.Text;\n\nclass Main {\n    static void Main(string[] args) {\n        var sb = new StringBuilder();\n        string? line;\n        while ((line = Console.ReadLine()) != null) {\n            sb.AppendLine(line);\n        }\n        Console.Write(sb.ToString().Trim());\n    }\n}\n",
+  ruby:
+    "# Ruby — read all input and process\ninput = $stdin.read.strip\n# Write your solution here\nputs input\n",
+  php:
+    "<?php\n// PHP 8 — named args, match expressions, etc. available\n$input = trim(file_get_contents('php://stdin'));\n// Write your solution here\necho $input;\n",
+  kotlin:
+    "fun main() {\n    // Kotlin — modern JVM language\n    val input = generateSequence(::readLine).joinToString(\"\\n\")\n    // Write your solution here\n    println(input.trim())\n}\n",
+  swift:
+    "import Foundation\n\n// Swift — read all stdin\nvar lines: [String] = []\nwhile let line = readLine() {\n    lines.append(line)\n}\nlet input = lines.joined(separator: \"\\n\")\n// Write your solution here\nprint(input)\n",
+  r:
+    "# R — read from stdin\ninput <- readLines(con = file(\"stdin\"))\n# Write your solution here\ncat(paste(input, collapse = \"\\n\"), \"\\n\")\n",
+  perl:
+    "#!/usr/bin/perl\nuse strict;\nuse warnings;\n\n# Read all input\nmy $input = do { local $/; <STDIN> };\nchomp $input;\n# Write your solution here\nprint $input, \"\\n\";\n"
+};
 
 export default function AdminContestForm() {
   const navigate = useNavigate();
@@ -45,6 +91,7 @@ export default function AdminContestForm() {
   });
   const [ai, setAi] = useState({ topic: "", count: 4, difficulty: "medium" });
   const [error, setError] = useState("");
+  const [activeStarterCodeLang, setActiveStarterCodeLang] = useState({});
 
   function updateContest(field, value) {
     setContest((current) => ({ ...current, [field]: value }));
@@ -312,22 +359,86 @@ export default function AdminContestForm() {
                 </div>
               ) : (
                 <>
+                  <div className="two-column">
+                    <label>
+                      Default language (for student)
+                      <select
+                        value={question.language || "python"}
+                        onChange={(event) => {
+                          const newLang = event.target.value;
+                          const currentCodes = question.starterCodes || {};
+                          const currentCode = currentCodes[newLang] !== undefined
+                            ? currentCodes[newLang]
+                            : (starterTemplates[newLang] || "");
+                          
+                          setContest((current) => {
+                            const questions = [...current.questions];
+                            questions[index] = {
+                              ...questions[index],
+                              language: newLang,
+                              starterCode: currentCode
+                            };
+                            return { ...current, questions };
+                          });
+                        }}
+                      >
+                        {languageOptions.map((language) => (
+                          <option key={language.value} value={language.value}>
+                            {language.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Edit starter code for:
+                      <select
+                        value={activeStarterCodeLang[index] || question.language || "python"}
+                        onChange={(event) => {
+                          const editLang = event.target.value;
+                          setActiveStarterCodeLang((current) => ({
+                            ...current,
+                            [index]: editLang
+                          }));
+                        }}
+                      >
+                        {languageOptions.map((language) => (
+                          <option key={language.value} value={language.value}>
+                            {language.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                   <label>
-                    Default language
-                    <select value={question.language || "python"} onChange={(event) => updateQuestion(index, "language", event.target.value)}>
-                      {languageOptions.map((language) => (
-                        <option key={language.value} value={language.value}>
-                          {language.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Starter code
+                    Starter code ({languageOptions.find(l => l.value === (activeStarterCodeLang[index] || question.language || "python"))?.label})
                     <textarea
                       className="code-area"
-                      value={question.starterCode}
-                      onChange={(event) => updateQuestion(index, "starterCode", event.target.value)}
+                      value={
+                        (question.starterCodes || {})[activeStarterCodeLang[index] || question.language || "python"] !== undefined
+                          ? (question.starterCodes || {})[activeStarterCodeLang[index] || question.language || "python"]
+                          : (activeStarterCodeLang[index] || question.language || "python") === question.language && question.starterCode
+                            ? question.starterCode
+                            : (starterTemplates[activeStarterCodeLang[index] || question.language || "python"] || "")
+                      }
+                      onChange={(event) => {
+                        const editLang = activeStarterCodeLang[index] || question.language || "python";
+                        const newText = event.target.value;
+                        const newStarterCodes = { ...(question.starterCodes || {}), [editLang]: newText };
+                        
+                        setContest((current) => {
+                          const questions = [...current.questions];
+                          const updatedQuestion = {
+                            ...questions[index],
+                            starterCodes: newStarterCodes
+                          };
+                          // If editing the default language, sync with main starterCode
+                          if (editLang === question.language) {
+                            updatedQuestion.starterCode = newText;
+                          }
+                          questions[index] = updatedQuestion;
+                          return { ...current, questions };
+                        });
+                      }}
                     />
                   </label>
                   <div className="section-title">

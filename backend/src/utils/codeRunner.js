@@ -4,20 +4,80 @@ import os from "os";
 import path from "path";
 
 const LANGUAGE_CONFIG = {
+  python: {
+    label: "Python 3",
+    aliases: ["python", "python3", "py", "py3"],
+    fileName: "main.py"
+  },
   cpp: {
-    label: "C++",
-    aliases: ["c++", "cpp", "g++", "gcc"],
+    label: "C++ 17",
+    aliases: ["c++", "cpp", "g++"],
     fileName: "main.cpp"
   },
+  c: {
+    label: "C",
+    aliases: ["c", "gcc"],
+    fileName: "main.c"
+  },
   java: {
-    label: "Java",
+    label: "Java 21",
     aliases: ["java"],
     fileName: "Main.java"
   },
-  python: {
-    label: "Python",
-    aliases: ["python", "python3", "py", "py3"],
-    fileName: "main.py"
+  javascript: {
+    label: "JavaScript (Node)",
+    aliases: ["javascript", "js", "node", "node.js"],
+    fileName: "main.js"
+  },
+  typescript: {
+    label: "TypeScript",
+    aliases: ["typescript", "ts"],
+    fileName: "main.ts"
+  },
+  go: {
+    label: "Go",
+    aliases: ["go", "golang"],
+    fileName: "main.go"
+  },
+  rust: {
+    label: "Rust",
+    aliases: ["rust", "rs"],
+    fileName: "main.rs"
+  },
+  csharp: {
+    label: "C#",
+    aliases: ["csharp", "c#", "cs", "dotnet"],
+    fileName: "Main.cs"
+  },
+  ruby: {
+    label: "Ruby",
+    aliases: ["ruby", "rb"],
+    fileName: "main.rb"
+  },
+  php: {
+    label: "PHP",
+    aliases: ["php"],
+    fileName: "main.php"
+  },
+  kotlin: {
+    label: "Kotlin",
+    aliases: ["kotlin", "kt"],
+    fileName: "Main.kt"
+  },
+  swift: {
+    label: "Swift",
+    aliases: ["swift"],
+    fileName: "main.swift"
+  },
+  r: {
+    label: "R",
+    aliases: ["r", "rlang"],
+    fileName: "main.r"
+  },
+  perl: {
+    label: "Perl",
+    aliases: ["perl", "pl"],
+    fileName: "main.pl"
   }
 };
 
@@ -98,7 +158,18 @@ async function executeOne({ code, language, input }) {
   });
 
   if (!response.ok) {
-    const error = new Error("Code runner rejected the execution request");
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail = body.message || JSON.stringify(body);
+    } catch {
+      detail = await response.text().catch(() => "");
+    }
+    const error = new Error(
+      `Code runner rejected the execution request (HTTP ${response.status}${
+        detail ? ": " + detail : ""
+      })`
+    );
     error.status = 503;
     throw error;
   }
@@ -147,6 +218,8 @@ function runProcess(command, args, { cwd, input = "", timeoutMs = 5000 } = {}) {
 
 async function prepareLocalExecution(language, code) {
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "contesthub-"));
+  const isWin = process.platform === "win32";
+  const exeName = isWin ? "main.exe" : "main";
 
   if (language === "python") {
     await fs.writeFile(path.join(workDir, "main.py"), code);
@@ -154,36 +227,111 @@ async function prepareLocalExecution(language, code) {
   }
 
   if (language === "cpp") {
-    const outputName = process.platform === "win32" ? "main.exe" : "main";
     await fs.writeFile(path.join(workDir, "main.cpp"), code);
     const compile = await runProcess(
       "g++",
-      ["main.cpp", "-O2", "-std=c++17", "-o", outputName],
+      ["main.cpp", "-O2", "-std=c++17", "-o", exeName],
       { cwd: workDir, timeoutMs: 10000 }
     );
-
     if (compile.code !== 0 || compile.timedOut) {
-      return {
-        workDir,
-        compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed"
-      };
+      return { workDir, compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed" };
     }
+    return { workDir, command: path.join(workDir, exeName), args: [] };
+  }
 
-    return { workDir, command: path.join(workDir, outputName), args: [] };
+  if (language === "c") {
+    await fs.writeFile(path.join(workDir, "main.c"), code);
+    const compile = await runProcess(
+      "gcc",
+      ["main.c", "-O2", "-o", exeName],
+      { cwd: workDir, timeoutMs: 10000 }
+    );
+    if (compile.code !== 0 || compile.timedOut) {
+      return { workDir, compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed" };
+    }
+    return { workDir, command: path.join(workDir, exeName), args: [] };
   }
 
   if (language === "java") {
     await fs.writeFile(path.join(workDir, "Main.java"), code);
     const compile = await runProcess("javac", ["Main.java"], { cwd: workDir, timeoutMs: 10000 });
-
     if (compile.code !== 0 || compile.timedOut) {
-      return {
-        workDir,
-        compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed"
-      };
+      return { workDir, compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed" };
     }
-
     return { workDir, command: "java", args: ["-cp", workDir, "Main"] };
+  }
+
+  if (language === "javascript") {
+    await fs.writeFile(path.join(workDir, "main.js"), code);
+    return { workDir, command: "node", args: ["main.js"] };
+  }
+
+  if (language === "typescript") {
+    await fs.writeFile(path.join(workDir, "main.ts"), code);
+    // Try ts-node first, fallback to npx tsx
+    return { workDir, command: "npx", args: ["tsx", "main.ts"] };
+  }
+
+  if (language === "go") {
+    await fs.writeFile(path.join(workDir, "main.go"), code);
+    return { workDir, command: "go", args: ["run", "main.go"] };
+  }
+
+  if (language === "rust") {
+    await fs.writeFile(path.join(workDir, "main.rs"), code);
+    const compile = await runProcess(
+      "rustc",
+      ["main.rs", "-o", exeName],
+      { cwd: workDir, timeoutMs: 15000 }
+    );
+    if (compile.code !== 0 || compile.timedOut) {
+      return { workDir, compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed" };
+    }
+    return { workDir, command: path.join(workDir, exeName), args: [] };
+  }
+
+  if (language === "csharp") {
+    await fs.writeFile(path.join(workDir, "Main.cs"), code);
+    // Use dotnet-script or csi; fallback to Piston if not available
+    return { workDir, command: "dotnet-script", args: ["Main.cs"] };
+  }
+
+  if (language === "ruby") {
+    await fs.writeFile(path.join(workDir, "main.rb"), code);
+    return { workDir, command: "ruby", args: ["main.rb"] };
+  }
+
+  if (language === "php") {
+    await fs.writeFile(path.join(workDir, "main.php"), code);
+    return { workDir, command: "php", args: ["main.php"] };
+  }
+
+  if (language === "kotlin") {
+    await fs.writeFile(path.join(workDir, "Main.kt"), code);
+    const compile = await runProcess(
+      "kotlinc",
+      ["Main.kt", "-include-runtime", "-d", "main.jar"],
+      { cwd: workDir, timeoutMs: 30000 }
+    );
+    if (compile.code !== 0 || compile.timedOut) {
+      return { workDir, compileError: compile.timedOut ? "Compilation timed out" : compile.stderr || "Compilation failed" };
+    }
+    return { workDir, command: "java", args: ["-jar", path.join(workDir, "main.jar")] };
+  }
+
+  if (language === "swift") {
+    await fs.writeFile(path.join(workDir, "main.swift"), code);
+    return { workDir, command: "swift", args: ["main.swift"] };
+  }
+
+  if (language === "r") {
+    await fs.writeFile(path.join(workDir, "main.r"), code);
+    return { workDir, command: "Rscript", args: ["main.r"] };
+  }
+
+  if (language === "perl") {
+    await fs.writeFile(path.join(workDir, "main.pl"), code);
+    return { workDir, command: "perl", args: ["main.pl"] };
   }
 
   const error = new Error("Unsupported programming language");

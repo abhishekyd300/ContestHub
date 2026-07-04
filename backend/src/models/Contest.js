@@ -23,8 +23,13 @@ const questionSchema = new mongoose.Schema(
     prompt: { type: String, required: true },
     marks: { type: Number, required: true, min: 1 },
     options: [optionSchema],
-    language: { type: String, default: "javascript" },
+    language: { type: String, default: "python" },
     starterCode: { type: String, default: "" },
+    starterCodes: {
+      type: Map,
+      of: String,
+      default: {}
+    },
     testCases: [testCaseSchema]
   },
   { timestamps: true }
