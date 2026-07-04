@@ -34,29 +34,70 @@ router.post("/generate-questions", requireAuth, requireRole("admin"), async (req
   try {
     const { topic, count = 5, difficulty = "medium" } = req.body;
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.json({ questions: sampleQuestions(topic), source: "sample" });
+    // 1. Try Google Gemini if key is provided
+    if (process.env.GEMINI_API_KEY) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `Generate contest questions as JSON with a questions array. Use type mcq or coding. MCQs need exactly 4 options with one correct option. Coding questions must use language python, cpp, or java and need starterCode and testCases.
+Create ${count} ${difficulty} questions about ${topic}. Return fields: type,title,prompt,marks,options,language,starterCode,testCases.`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini API error: ${response.status} - ${errText}`);
+      }
+
+      const data = await response.json();
+      const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const parsed = JSON.parse(textContent);
+      return res.json({ questions: parsed.questions || [], source: "gemini" });
     }
 
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "Generate contest questions as JSON with a questions array. Use type mcq or coding. MCQs need exactly 4 options with one correct option. Coding questions must use language python, cpp, or java and need starterCode and testCases."
-        },
-        {
-          role: "user",
-          content: `Create ${count} ${difficulty} questions about ${topic}. Return fields: type,title,prompt,marks,options,language,starterCode,testCases.`
-        }
-      ]
-    });
+    // 2. Try OpenAI if key is provided
+    if (process.env.OPENAI_API_KEY) {
+      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              "Generate contest questions as JSON with a questions array. Use type mcq or coding. MCQs need exactly 4 options with one correct option. Coding questions must use language python, cpp, or java and need starterCode and testCases."
+          },
+          {
+            role: "user",
+            content: `Create ${count} ${difficulty} questions about ${topic}. Return fields: type,title,prompt,marks,options,language,starterCode,testCases.`
+          }
+        ]
+      });
 
-    const parsed = JSON.parse(completion.choices[0].message.content);
-    res.json({ questions: parsed.questions || [], source: "openai" });
+      const parsed = JSON.parse(completion.choices[0].message.content);
+      return res.json({ questions: parsed.questions || [], source: "openai" });
+    }
+
+    // 3. Fallback to sample static questions
+    res.json({ questions: sampleQuestions(topic), source: "sample" });
   } catch (error) {
     next(error);
   }
