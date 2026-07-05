@@ -19,17 +19,13 @@ const port = process.env.PORT || 5000;
 app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
 app.use(express.json({ limit: "2mb" }));
 
-let isConnected = false;
 app.use(async (req, res, next) => {
-  if (!isConnected) {
-    try {
-      await connectDb();
-      isConnected = true;
-    } catch (err) {
-      return next(err);
-    }
+  try {
+    await connectDb();
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
 
 app.get("/api/health", (req, res) => {
