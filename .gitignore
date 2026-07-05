@@ -6,3 +6,4 @@ coverage
 .DS_Store
 nul.exe
 runtimes*.json
+.vercel

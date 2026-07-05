@@ -141,7 +141,7 @@ router.post("/:contestId/submit", requireAuth, requireRole("student"), async (re
     await attempt.save();
 
     const payload = attempt.toObject();
-    payload.contest = { _id: attempt.contest._id, title: attempt.contest.title };
+    payload.contest = { _id: contest._id, title: contest.title };
     res.json({ attempt: payload });
   } catch (error) {
     next(error);

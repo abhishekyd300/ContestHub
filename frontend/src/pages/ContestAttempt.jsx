@@ -112,13 +112,30 @@ export default function ContestAttempt() {
       .catch((err) => setError(err.response?.data?.message || "Unable to start contest"));
   }, [contestId]);
 
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    if (!contest) return;
+
+    const calculateTimeLeft = () => {
+      const end = new Date(contest.endAt).getTime();
+      const diff = Math.max(0, end - Date.now());
+      setTimeLeft(diff);
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+
+    return () => clearInterval(interval);
+  }, [contest]);
+
   const remainingLabel = useMemo(() => {
     if (!contest) return "";
-    const end = new Date(contest.endAt).getTime();
-    const diff = Math.max(0, end - Date.now());
-    const minutes = Math.floor(diff / 60000);
-    return `${minutes} min remaining`;
-  }, [contest]);
+    const minutes = Math.floor(timeLeft / 60000);
+    const seconds = Math.floor((timeLeft % 60000) / 1000);
+    if (timeLeft <= 0) return "Time expired";
+    return `${minutes}m ${seconds}s remaining`;
+  }, [contest, timeLeft]);
 
   function updateAnswer(question, value) {
     setAnswers((current) => {
